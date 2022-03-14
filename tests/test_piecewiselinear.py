@@ -135,6 +135,15 @@ def test_init_normalized_to_number(small):
     assert p.norm == approx(8.0)
 
 
+def test_init_emptyxy():
+    p = PLF([], [])
+
+    assert p.x[0] == approx(0.0)
+    assert p.x[1] == approx(1.0)
+    assert p.y[0] == approx(0.0)
+    assert p.y[1] == approx(0.0)
+
+
 def test_xsetter(small):
     x, y, *r = small
 

@@ -45,7 +45,13 @@ class PiecewiseLinearFunction:
         if shapex[0] != shapey[0]:
             raise ValueError("x and y should have the same length")
 
-        sortindices = np.argsort(x)
+        if shapex[0] == 0:
+            # Default PLF using [0, 1] and [0, 0]
+            self._x = np.array([0, 1])
+            self._y = np.array([0, 0])
+            normalize = False
+
+        sortindices = np.argsort(self._x)
         self._x = self._x[sortindices]
         self._y = self._y[sortindices]
 
@@ -104,9 +110,9 @@ class PiecewiseLinearFunction:
         """String representation for a piecewiselinear function."""
         retval = ""
 
-        retval += np.array2string(self._x, separator=', ', sign='+')
-        retval += '\n'
-        retval += np.array2string(self._y, separator=', ', sign='+')
+        retval += np.array2string(self._x, separator=", ", sign="+")
+        retval += "\n"
+        retval += np.array2string(self._y, separator=", ", sign="+")
         return retval
 
     def insert_points(self, newx, newy):
