@@ -104,8 +104,9 @@ class PiecewiseLinearFunction:
         """String representation for a piecewiselinear function."""
         retval = ""
 
-        retval += f"{self._x}\n"
-        retval += f"{self._y}"
+        retval += np.array2string(self._x, separator=', ', sign='+')
+        retval += '\n'
+        retval += np.array2string(self._y, separator=', ', sign='+')
         return retval
 
     def insert_points(self, newx, newy):
