@@ -149,14 +149,14 @@ class PiecewiseLinearFunction:
             self._x,
             separator=", ",
             sign="+",
-            formatter={"float_kind": lambda x: "%.4e" % x},
+            formatter={"float_kind": lambda x: "%+.4e" % x},
         )
         retval += "\n"
         retval += np.array2string(
             self._y,
             separator=", ",
             sign="+",
-            formatter={"float_kind": lambda x: "%.4e" % x},
+            formatter={"float_kind": lambda x: "%+.4e" % x},
         )
         return retval
 
