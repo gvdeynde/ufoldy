@@ -7,10 +7,31 @@ from pytest import approx
 import numpy as np
 from scipy.integrate import quad
 from ufoldy.piecewiselinear import PiecewiseLinearFunction as PLF
+from ufoldy.piecewiselinear import refine_log, refine_lin
 
 
 def argsort(seq):
     return sorted(range(len(seq)), key=seq.__getitem__)
+
+
+def test_refine_lin_fun():
+    x = np.array([1, 2, 3])
+
+    xextra = refine_lin(x)
+    xextra_correct = np.array([1.5, 2.5])
+
+    for (xi, xie) in zip(xextra, xextra_correct):
+        assert xi == approx(xie)
+
+
+def test_refine_log_fun():
+    x = np.power(10, [1, 2, 3])
+
+    xextra = refine_log(x)
+    xextra_correct = np.power(10, [1.5, 2.5])
+
+    for (xi, xie) in zip(xextra, xextra_correct):
+        assert xi == approx(xie)
 
 
 @pytest.fixture
@@ -255,3 +276,68 @@ def test_convolute_different_domain(small):
     assert conv == approx(p.convolute(q))
 
     assert conv == approx(q.convolute(p))
+
+
+def test_copy(small):
+    x, y, *r = small
+
+    a = PLF(x, y)
+
+    b = a.copy()
+
+    assert np.any(a.x == b.x) and not a.x is b.x
+    assert np.any(a.y == b.y) and not a.y is b.y
+
+
+def test_refine_linear():
+    x = [0, 1, 3]
+    y = [1, 2, -1]
+
+    xnew = np.array([0, 0.5, 1, 2, 3])
+    ynew = np.array([1, 1.5, 2, 0.5, -1])
+
+    a = PLF(x, y)
+
+    a.refine(refine_lin)
+
+    for xi, xin in zip(a.x, xnew):
+        assert xi == approx(xin)
+
+    for yi, yin in zip(a.y, ynew):
+        assert yi == approx(yin)
+
+
+def test_refine_log():
+    x = np.power(10, [0, 1, 3])
+    y = [1, 2, -1]
+
+    xnew = np.power(10, [0, 0.5, 1, 2, 3])
+    ynew = np.array([1, 1.2402530733520423, 2, 1.7272727272727273, -1])
+
+    a = PLF(x, y)
+
+    a.refine(refine_log)
+
+    for xi, xin in zip(a.x, xnew):
+        assert xi == approx(xin)
+
+    for yi, yin in zip(a.y, ynew):
+        assert yi == approx(yin)
+
+
+def test_refine_default():
+    x = np.power(10, [0, 1, 3])
+    y = [1, 2, -1]
+
+    xnew = np.power(10, [0, 0.5, 1, 2, 3])
+    ynew = np.array([1, 1.2402530733520423, 2, 1.7272727272727273, -1])
+
+    a = PLF(x, y)
+
+    a.refine()
+
+    for xi, xin in zip(a.x, xnew):
+        assert xi == approx(xin)
+
+    for yi, yin in zip(a.y, ynew):
+        assert yi == approx(yin)

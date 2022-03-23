@@ -8,6 +8,41 @@ from scipy.interpolate import interp1d
 from scipy.special import roots_legendre
 
 
+def refine_log(x):
+    """
+    Function that refines a vector by inserting a new point between two
+    existing points in log-equidistant way. This function returns the extra
+    nodes, not the whole set.
+
+    Args:
+        x (obj:`np.ndarray`): the nodes
+
+    Returns:
+        (obj:`np.ndarray`): the extra nodes
+    """
+
+    logx = np.log10(x)
+    newlogx = (logx[1:] + logx[:-1]) / 2
+
+    return np.power(10, newlogx)
+
+
+def refine_lin(x):
+    """
+    Function that refines a vector by inserting a new point between two
+    existing points in equidistant way. This function returns the extra nodes,
+    not the whole set.
+
+    Args:
+        x (obj:`np.ndarray`): the nodes
+
+    Returns:
+        (obj:`np.ndarray`): the extra nodes
+    """
+
+    return (x[1:] + x[:-1]) / 2
+
+
 class PiecewiseLinearFunction:
     """Class for piecewise linear functions, defined by x positions and corresponding y values"""
 
@@ -124,21 +159,46 @@ class PiecewiseLinearFunction:
             to be added
             newy (:obj: `list` of :obj:`float` or :obj:`np.ndarray`): the
             corresponding function values.
+
+        Returns:
+            (:obj: `PiecewiseLinearFunction`): self
         """
         indices = np.searchsorted(self._x, newx)
 
         self._x = np.insert(self._x, indices, newx)
         self._y = np.insert(self._y, indices, newy)
 
-        self._fun = interp1d(
-            self._x, self._y, kind="linear", bounds_error=False, fill_value=0.0
-        )
+        self._fun = self.interpolate(self._x, self._y)
+
+        return self
+
+    def refine(self, refiner=refine_log):
+        """Insert new nodes according to the Strategy set in `refiner`
+
+        Args:
+            refiner: (:fun:): a function that takes a np.ndarray of sorted
+            nodes and returns the extra nodes according to some strategy.
+            Default: `refine_log`: logarithmic refining.
+
+        Returns:
+            (:obj: `PiecewiseLinearFunction`): self
+        """
+
+        newx = refiner(self._x)
+        newy = self(newx)
+
+        self.insert_points(newx, newy)
+
+        return self
 
     def convolute(self, pwlf2):
         """Calculates a convolution of two piecewiselinearfunctions
         Args:
             pwlf2: (:obj:`PiecewiseLinearFunction`) the second
             PiecewiseLinearFunction
+
+        Returns:
+            float: the result of the convolution integral
         """
         # First unionize the nodes
         unionized_x = np.unique(np.concatenate((self._x, pwlf2.x)))
@@ -167,4 +227,18 @@ class PiecewiseLinearFunction:
         return np.dot(
             (unionized_x[1:] - unionized_x[:-1]) / 2,
             funz.reshape((int(funz.shape[0] / 2), 2)).sum(axis=1),
+        )
+
+    def copy(self):
+        """
+        Return a full, deep copy of PLF.
+
+        Args:
+            none
+
+        Returns:
+            (:obj: `PiecewiseLinearFunction`): a deep copy of itself
+        """
+        return PiecewiseLinearFunction(
+            self._x, self._y, normalize=True, normvalue=self.norm
         )
