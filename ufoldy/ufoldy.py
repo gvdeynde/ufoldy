@@ -5,7 +5,7 @@ This module provides a class for unfolding neutron spectra
 
 from abc import ABC, abstractmethod
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, shgo
 from ufoldy.piecewiselinear import PiecewiseLinearFunction as PLF
 from ufoldy.piecewiselinear import refine_log
 from ufoldy.reactionrate import ReactionRate
@@ -67,6 +67,28 @@ class UFO(ABC):
             "Sorry. You can't change the solution list on the fly. The code fills this list."
         )
 
+    @property
+    def reaction_rate_errors(self, idx=-1):
+        """Property to get the errors in the reaction rates for a certain
+        solution. If no idx is given, function returns the errors for the last
+        solution in the list.
+        """
+
+        Nrr = len(self._reaction_rates)
+
+        rr_errors = np.zeros(Nrr)
+
+        for i in range(Nrr):
+            rr_errors[i] = self._reaction_rates[i].reaction_rate - self._solutions[
+                idx
+            ].convolute(self._reaction_rates[i].cross_section)
+
+        return rr_errors
+
+    @reaction_rate_errors.setter
+    def reaction_rate_errors(self, val):
+        raise ValueError("reaction_rate_errors is a read-only property")
+
     def unfold(self, Nrefine):
         """
         This method performs the whole unfolding, using `Nrefine` refinement
@@ -95,12 +117,16 @@ class UFO(ABC):
             iref += 1
 
             if self._verbosity > 0:
-                print("\n")
-                print(f" Refinement step #{iref}")
+                print("---------------------------")
+                print(f"  - Refinement step #{iref:2d} -")
+                print("---------------------------")
 
             self.unfold_singlestep()
 
-        return self._solutions
+            if self._verbosity > 1:
+                print(self._solutions[-1])
+                print("===========================")
+                print("\n")
 
     def unfold_initial(self):
         """
@@ -112,16 +138,8 @@ class UFO(ABC):
 
         self._solutions.append(result)
 
-        return result
-
     def unfold_singlestep(self):
-        """This method performs one refinement in the unfolding.
-        Args:
-
-        Returns:
-        (:obj: `PiecewiseLinearFunction`): the next refined optimized
-        solution
-        """
+        """This method performs one refinement in the unfolding."""
 
         if len(self._solutions) == 0:
             # No solutions present. I should start with the inital guess from
@@ -140,8 +158,6 @@ class UFO(ABC):
 
             # Append result
             self._solutions.append(result)
-
-        return self._solutions[-1]
 
     @abstractmethod
     def optimize(self, guess, initial):
@@ -194,9 +210,25 @@ class Tikhonov(UFO):
 
         x0 = guess.y
 
-        # This could also be made more flexible
+        options = {}
+        tol = 1e-8
+
+        if self._verbosity > 1:
+            options["disp"] = True
+
+        # Selection of minimizer could also be made more flexible
         method = "Nelder-Mead"
-        options = {"adaptive": True, "xatol": 1e-8, "fatol": 1e-5}
+        options = {**options, **{"adaptive": True, "xatol": 1e-9, "fatol": 1e-7}}
+
+        # method = "trust-constr"
+        # options = {**options, **{"verbose": self._verbosity}}
+
+        # method = "L-BFGS-B"
+        # options = {**options, **{"gtol":1e-8}}
+        # if self._verbosity > 1:
+        # options["iprint"] = 99
+
+
         bounds = [(0, None) for xi in x0]
 
         optim_res = minimize(
@@ -205,6 +237,7 @@ class Tikhonov(UFO):
             method=method,
             options=options,
             bounds=bounds,
+            tol=tol,
         )
 
         guess.y = optim_res.x
@@ -254,8 +287,8 @@ class Tikhonov(UFO):
             self._weights,
         )
 
-        if self._verbosity > 1:
-            print(self._guess)
+        if self._verbosity > 3:
+            print(self._guess.y)
             print(rr_residual, difference_prior, smoothness, curvature, total_residual)
             print("--")
 
