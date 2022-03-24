@@ -5,8 +5,9 @@ This module provides a class for unfolding neutron spectra
 
 from abc import ABC, abstractmethod
 import numpy as np
-from ufoldy.piecewiselinear import PieceWiseLinear as PLF
-from ufoldy.Piecewiselinear import refine_log
+from scipy.optimize import minimize
+from ufoldy.piecewiselinear import PiecewiseLinearFunction as PLF
+from ufoldy.piecewiselinear import refine_log
 from ufoldy.reactionrate import ReactionRate
 
 
@@ -15,10 +16,10 @@ class UFO(ABC):
     Subclasses have to implement the minimization of a functional step.
     """
 
-    def __init__(self, reaction_rates, initial_guess, refiner, verbosity):
+    def __init__(self, reaction_rates, initial_guess, refiner=refine_log, verbosity=0):
         """
         Args:
-            reaction_rates (:obj: `list` of :obj:`ReactionRate`): the reaction
+            reaction_rates (:obj:`list` of :obj:`ReactionRate`): the reaction
             rates to use in the unfolding procedure
             initial_guess (:obj: `PiecewiseLinearFunction`): an initial guess
             for the neutron spectrum.
@@ -30,7 +31,7 @@ class UFO(ABC):
         """
 
         self._reaction_rates = reaction_rates
-        self._initial_guess = initial_guess
+        self._initial_guess = initial_guess.copy()
         self._verbosity = verbosity
         self._refiner = refiner
 
@@ -143,7 +144,7 @@ class UFO(ABC):
         return self._solutions[-1]
 
     @abstractmethod
-    def optimize(self, guess):
+    def optimize(self, guess, initial):
         """This method should be specified in the child classes"""
         pass
 
@@ -156,7 +157,7 @@ class Tikhonov(UFO):
         reaction_rates,
         initial_guess,
         weights=None,
-        refiner=refiner_log,
+        refiner=refine_log,
         verbosity=0,
     ):
         """
@@ -165,7 +166,7 @@ class Tikhonov(UFO):
             rates to use in the unfolding procedure
             initial_guess (:obj: `PiecewiseLinearFunction`): an initial guess
             for the neutron spectrum.
-            weigts (:obj: `numpy.ndarray` or list) of length 4: weights for the Tikhonov
+            weights (:obj: `numpy.ndarray` or list) of length 4: weights for the Tikhonov
             functional. First weight is for the residual, second weight is for
             the deviation from the prior, third weight is for the derivative,
             fourth weight is for the curvature.
@@ -184,82 +185,78 @@ class Tikhonov(UFO):
             if w.size != 4:
                 raise ValueError("The Tikhonov weights vector should have length 4!")
 
-        self._weigts = w
+        self._weights = w
 
-        def optimize(self, guess, initial):
+    def optimize(self, guess, initial):
 
-            self._guess = guess.copy()
-            self._initial = initial
+        self._guess = guess.copy()
+        self._initial = initial
 
-            x0 = np.log10(guess.y)
+        x0 = guess.y
 
-            # This could also be made more flexible
-            method = "Nelder-Mead"
-            options = {"adaptive": True, "xatol": 1e-4, "fatol": 1e-6}
-            bounds = [(0, None) for i in x0.size]
+        # This could also be made more flexible
+        method = "Nelder-Mead"
+        options = {"adaptive": True, "xatol": 1e-8, "fatol": 1e-5}
+        bounds = [(0, None) for xi in x0]
 
-            optim_res = minimize(
-                self.tikhonov_functional,
-                x0=x0,
-                method=method,
-                options=options,
-                bounds=bounds,
-            )
+        optim_res = minimize(
+            self.tikhonov_functional,
+            x0=x0,
+            method=method,
+            options=options,
+            bounds=bounds,
+        )
 
-            guess.y = np.power(10, optim_res.x)
+        guess.y = optim_res.x
 
-            self._guess = None
-            self._initial = None
+        self._guess = None
+        self._initial = None
 
-            return guess
+        return guess
 
-        def tikhonov_functional(self, y):
-            """This function calculates the Tikhonov functional"""
+    def tikhonov_functional(self, y):
+        """This function calculates the Tikhonov functional"""
 
-            # Update the guess with the new `y` value
-            self._guess.y = np.power(10, y)
+        # Update the guess with the new `y` value
+        self._guess.y = y
 
-            # Calculate reaction rate residual
-            rr_res = np.zeros(len(self._reaction_rates))
+        # Calculate reaction rate residual
+        rr_res = np.zeros(len(self._reaction_rates))
 
-            for i, rr in enumerate(self._reaction_rates):
-                rr_res[i] = (
-                    rr.cross_section.convolute(self._guess) - rr.reaction_rate
-                ) ** 2 / rr.reaction_rate_error
+        for i, rr in enumerate(self._reaction_rates):
+            rr_res[i] = (
+                rr.cross_section.convolute(self._guess) - rr.reaction_rate
+            ) ** 2 / rr.reaction_rate_error
 
-            rr_residual = np.sqrt(np.sum(rr_res))
+        rr_residual = np.sqrt(np.sum(rr_res))
 
-            # Calculate difference to prior
-            # If self._initial is True, we need to compare to initial guess from
-            # user. If self._initial is False, we need to compare to the last
-            # solution in the solution list.
+        # Calculate difference to prior
+        # If self._initial is True, we need to compare to initial guess from
+        # user. If self._initial is False, we need to compare to the last
+        # solution in the solution list.
+        # Comparison is done by evaluating the prior in the nodes and comparing
+        # that value to the current `y` estimates.
 
-            if self._initial:
-                difference_prior = np.linalg.norm(y - np.log10(self._initial_guess.y))
-            else:
-                difference_prior = np.linalg.norm(y - np.log10(self._solutions[-1].y))
+        if self._initial:
+            difference_prior = np.linalg.norm(y - self._initial_guess(self._guess.x))
+        else:
+            difference_prior = np.linalg.norm(y - self._solutions[-1](self._guess.x))
 
-            # Calculate smoothness
-            smoothness = np.linalg.norm(np.diff(y))
+        # Calculate smoothness
+        smoothness = np.linalg.norm(np.diff(y))
 
-            # Calculate curvature
-            curvature = np.lingalg.norm(np.diff(y, 2))
+        # Calculate curvature
+        curvature = np.linalg.norm(np.diff(y, 2))
 
-            # Total residual
-            total_residual = np.dot(
-                np.array([rr_residual, difference_prior, smoothness, curvature]),
-                self._weigts,
-            )
+        # Total residual
+        total_residual = np.dot(
+            np.array([rr_residual, difference_prior, smoothness, curvature]),
+            self._weights,
+        )
 
-            if self._verbose > 1:
-                print(self._guess)
-                print(rr_residual, difference_prior, smoothness, curvature)
-                print(self._weigts[0] * rr_residual)
-                print(self._weigts[1] * difference_prior)
-                print(self._weigts[2] * smoothness)
-                print(self._weigts[3] * curvature)
-                print(total_residual)
+        if self._verbosity > 1:
+            print(self._guess)
+            print(rr_residual, difference_prior, smoothness, curvature, total_residual)
+            print("--")
 
-            return total_residual
-
-
+        return total_residual
