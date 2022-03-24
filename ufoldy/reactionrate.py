@@ -18,7 +18,7 @@ class ReactionRate:
 
     cross_section: PiecewiseLinearFunction = field(init=False)
     reaction_rate: float = 0.0
-    reaction_rate_error: float = 0.0
+    reaction_rate_error: float = 1.0
 
     def __post_init__(self, x, y):
         self.cross_section = PiecewiseLinearFunction(x, y)
