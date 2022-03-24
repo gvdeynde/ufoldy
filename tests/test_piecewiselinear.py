@@ -202,7 +202,7 @@ def test_str(small):
 
     p = PLF(x, y)
 
-    strval = "[+0., +1., +3.]\n[+1., +2., -1.]"
+    strval = "[+0.0000e+00, +1.0000e+00, +3.0000e+00]\n[+1.0000e+00, +2.0000e+00, -1.0000e+00]"
 
     assert f"{p}" == strval
 
@@ -341,3 +341,30 @@ def test_refine_default():
 
     for yi, yin in zip(a.y, ynew):
         assert yi == approx(yin)
+
+
+def test_flat_noy():
+    a = PLF.flat(-1, 1)
+
+    assert a.x[0] == approx(-1.0)
+    assert a.x[1] == approx(+1.0)
+    assert a.y[0] == approx(0.5)
+    assert a.y[1] == approx(0.5)
+
+
+def test_flat_y():
+    a = PLF.flat(-1, 1, 10)
+
+    assert a.x[0] == approx(-1.0)
+    assert a.x[1] == approx(+1.0)
+    assert a.y[0] == approx(10.0)
+    assert a.y[1] == approx(10.0)
+
+
+def test_flat_swapx():
+    a = PLF.flat(+1, -1)
+
+    assert a.x[0] == approx(-1.0)
+    assert a.x[1] == approx(+1.0)
+    assert a.y[0] == approx(0.5)
+    assert a.y[1] == approx(0.5)

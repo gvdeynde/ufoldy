@@ -97,6 +97,29 @@ class PiecewiseLinearFunction:
             self._y *= normvalue
             self._fun = self.interpolate(self._x, self._y)
 
+    @classmethod
+    def flat(cls, xmin, xmax, y=None):
+        """ classmethod to create a PiecewiseLinearFunction that is a flat line
+        between xmin and xmax
+
+        Args:
+            xmin: float left boundary
+            xmax: float right boundary
+            y: float height (if None, the height is set to 1.0/(xmax - xmin))
+
+        Returns:
+            instance of PiecewiseLinearFunction
+        """
+
+        if xmax < xmin:
+            xmin, xmax = xmax, xmin
+
+        if not y:
+            y = 1.0/(xmax-xmin)
+
+        return cls([xmin, xmax], [y, y])
+
+
     def __call__(self, x):
         return self._fun(x)
 
