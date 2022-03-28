@@ -80,25 +80,23 @@ class LLPLF:
 
         Args:
             x (:obj: `list` of :obj:`float` or :obj:`np.ndarray`): the nodes
-        """
-        xu = np.log10(x)
-        result = np.zeros_like(x)
 
-        # slope = np.zeros_like(self._u)
+        Returns
+            (:obj:`np.ndarray`): function evaluations in `x`. For values
+            outside the range, the function value is set to zero.
+        """
+        xu = np.log10(np.atleast_1d(x))
+        result = np.zeros_like(xu)
+
+        # Calculate the slopes
         slope = np.diff(self._z) / np.diff(self._u)
-        print("slopes", slope)
 
         # Find acceptable indices, i.e. in the range of definition of LLPLF
         idx = np.where(np.logical_and(xu >= self._u[0], xu < self._u[-1]))
-        print("here")
-        print(self._u)
-        print(xu)
-        print("idx", idx, xu[idx])
 
         # Find interval indices
         iidx = np.searchsorted(self._u, xu, side="right") - 1
         iidx = iidx[idx]
-        print("iidx", iidx)
 
         # Calculate the llplf
         result[idx] = np.power(
@@ -109,8 +107,6 @@ class LLPLF:
         idx_endp = np.where(xu == self._u[-1])
         result[idx_endp] = np.power(10, self._z[-1])
 
-        print("end point", idx_endp)
-
         return result
 
     @property
@@ -118,9 +114,21 @@ class LLPLF:
         """Calculates the integral of the piecewise function over its domain
         using a closed formula
         """
-        m = np.log10(self._z[1:] / self._z[:-1]) / np.log10(self._u[1:] / self.u[:-1])
 
-        m_minus_one = np.isclose(m, -1)
+        # Calculate the slopes
+        slope = np.diff(self._z) / np.diff(self._u)
+
+        # Need to take care of m=-1 (or close)
+        # np.where(np.isclose(slope, -1.), f1, f2)
+
+        F = np.power(10, self._z)
+        x = np.power(10, self._u)
+
+        result = np.sum(
+            F[:-1] / (slope + 1) * (x[1:] * np.power(x[1:] / x[:-1], slope) - x[:-1])
+        )
+
+        return result
 
     @property
     def x(self):
