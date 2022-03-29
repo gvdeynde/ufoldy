@@ -41,7 +41,7 @@ class LLPLF:
         # Check for unique nodes
         t, counts = np.unique(self._u, return_counts=True)
 
-        if np.any(counts != np.ones_like(self._u)):
+        if np.any(counts != np.ones_like(self._u, dtype=np.int64)):
             raise ValueError("Nodes should be unique!")
 
         # Sort the nodes
@@ -150,7 +150,7 @@ class LLPLF:
     @y.setter
     def y(self, y):
         """Sets new function values."""
-        self._z = np.log10(np.asarray(y))
+        self._z = np.log10(np.atleast_1d(y))
         if self._u.shape != self._z.shape:
             raise ValueError("y has wrong shape")
 
@@ -204,11 +204,28 @@ class LLPLF:
         """
 
         newu = (self._u[:-1] + self._u[1:]) / 2
-        newy = self(newu)
+        newy = self(np.power(10, newu))
 
         self.insert_points(np.power(10, newu), newy)
 
         return self
+
+    def __mul__(self, other):
+        """Multiplication operator overloading."""
+
+        # unionize the grid
+        unionized_u = np.unique(np.concatenate((self._u, other._u)))
+
+        # Since functions are considered to be zero outside their interval,
+        # the product is only defined where both are non-zero (i.e. defined).
+        min_u = np.max([self._u[0], other._u[0]])
+        max_u = np.min([self._u[-1], other._u[-1]])
+
+        unionized_u = unionized_u[unionized_u >= min_u]
+        unionized_u = unionized_u[unionized_u <= max_u]
+
+        unionized_x = np.power(10.0, unionized_u)
+        return LLPLF(unionized_x, self(unionized_x) * other(unionized_x))
 
     def convolute(self, pwlf2):
         """Calculates a convolution of two piecewiselinearfunctions
@@ -250,14 +267,17 @@ class LLPLF:
 
     def copy(self):
         """
-        Return a full, deep copy of PLF.
+        Return a full, deep copy of LLPLF.
 
         Args:
             none
 
         Returns:
-            (:obj: `PiecewiseLinearFunction`): a deep copy of itself
+            (:obj: `LLPLF`): a deep copy of itself
         """
-        return PiecewiseLinearFunction(
-            self._u, self._z, normalize=True, normvalue=self.norm
+        return LLPLF(
+            np.power(10, self._u),
+            np.power(10, self._z),
+            normalize=True,
+            normvalue=self.norm,
         )
