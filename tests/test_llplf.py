@@ -123,19 +123,30 @@ def test_init_single_element():
     with pytest.raises(ValueError):
         p = LLPLF([1], [1])
 
+
 def test_init_nonpositive_nodes():
 
     with pytest.raises(ValueError):
-        p = LLPLF([0, 1],[1, 2])
-        p = LLPLF([-1, 1],[1, 2])
-        p = LLPLF([1, -1],[1, 2])
+        p = LLPLF([0, 1], [1, 2])
+
+    with pytest.raises(ValueError):
+        p = LLPLF([-1, 1], [1, 2])
+
+    with pytest.raises(ValueError):
+        p = LLPLF([1, -1], [1, 2])
+
 
 def test_init_nonpositive_fvals():
 
     with pytest.raises(ValueError):
-        p = LLPLF([1, 2],[0, 2])
-        p = LLPLF([1, 2],[-1, 2])
-        p = LLPLF([1, 2],[1, -2])
+        p = LLPLF([1, 2], [0, 2])
+
+    with pytest.raises(ValueError):
+        p = LLPLF([1, 2], [-1, 2])
+
+    with pytest.raises(ValueError):
+        p = LLPLF([1, 2], [1, -2])
+
 
 def test_evaluate(llplf_a):
     x, y, *r = llplf_a
@@ -285,8 +296,8 @@ def test_flat_noy():
 
     assert a.x[0] == approx(1.0)
     assert a.x[1] == approx(+10.0)
-    assert a.y[0] == approx(1./9)
-    assert a.y[1] == approx(1./9)
+    assert a.y[0] == approx(1.0 / 9)
+    assert a.y[1] == approx(1.0 / 9)
 
 
 def test_flat_y():
@@ -307,5 +318,5 @@ def test_flat_swapx():
 
     assert a.x[0] == approx(1.0)
     assert a.x[1] == approx(+10.0)
-    assert a.y[0] == approx(1./9)
-    assert a.y[1] == approx(1./9)
+    assert a.y[0] == approx(1.0 / 9)
+    assert a.y[1] == approx(1.0 / 9)

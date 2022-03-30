@@ -27,34 +27,35 @@ class LLPLF:
         _x = np.atleast_1d(np.asarray(x, dtype=float))
         _y = np.atleast_1d(np.asarray(y, dtype=float))
 
-        self._u = np.log10(_x)
-        self._z = np.log10(_y)
+        shapex = _x.shape
+        shapey = _y.shape
 
-        shapeu = self._u.shape
-        shapez = self._z.shape
-
-        if len(shapeu) != 1:
+        if len(shapex) != 1:
             raise ValueError("x needs to be a one-dimensional array")
 
-        if len(shapez) != 1:
+        if len(shapey) != 1:
             raise ValueError("y needs to be a one-dimensional array")
 
-        if shapeu[0] != shapez[0]:
+        if shapex[0] != shapey[0]:
             raise ValueError("x and y should have the same length")
-        elif shapeu[0] == 1:
+        elif shapex[0] == 1:
             raise ValueError("x and y should have at least length 2")
 
-        # Check for unique nodes
-        t, counts = np.unique(self._u, return_counts=True)
-
-        if np.any(counts != np.ones_like(self._u, dtype=np.int64)):
-            raise ValueError("Nodes should be unique!")
-
+        # Check for non-positive nodes or function values
         if np.any(_x <= 0):
             raise ValueError("Nodes should be positive!")
 
         if np.any(_y <=0):
             raise ValueError("Function values should be positive!")
+
+        # Check for unique nodes
+        t, counts = np.unique(_x, return_counts=True)
+
+        if np.any(counts != np.ones_like(_x, dtype=np.int64)):
+            raise ValueError("Nodes should be unique!")
+
+        self._u = np.log10(_x)
+        self._z = np.log10(_y)
 
         # Sort the nodes
         sortindices = np.argsort(self._u)
