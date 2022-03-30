@@ -4,6 +4,7 @@ This module provides a class to work with loglog piecewiselinear functions
 """
 
 import numpy as np
+import numpy.ma as ma
 
 
 class LLPLF:
@@ -119,16 +120,26 @@ class LLPLF:
         slope = np.diff(self._z) / np.diff(self._u)
 
         # Need to take care of m=-1 (or close)
-        # np.where(np.isclose(slope, -1.), f1, f2)
+        mask = np.isclose(slope, -1., rtol=1e-8)
+
+        slopem = ma.MaskedArray(slope, mask, fill_value=np.nan)
 
         F = np.power(10, self._z)
         x = np.power(10, self._u)
 
-        result = np.sum(
-            F[:-1] / (slope + 1) * (x[1:] * np.power(x[1:] / x[:-1], slope) - x[:-1])
-        )
+        # Calculate the integral over each subinterval except the ones where
+        # slope is -1 (using masked array). Fill the intervals where slope is
+        # -1 with np.nan
+        result = (F[:-1] / (slopem + 1) * (x[1:] * np.power(x[1:] / x[:-1], slopem) - x[:-1])).filled()
 
-        return result
+        # Find the indices where slope was -1 and fill those intervals with ln
+        # formula
+        idx = np.where(mask)[0]
+        result[idx] = F[idx]*x[idx]*np.log(x[idx+1]/x[idx])
+
+        norm = np.sum(result)
+
+        return norm
 
     @property
     def x(self):
