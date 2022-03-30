@@ -50,14 +50,20 @@ class LLPLF:
         if np.any(counts != np.ones_like(self._u, dtype=np.int64)):
             raise ValueError("Nodes should be unique!")
 
+        if np.any(_x <= 0):
+            raise ValueError("Nodes should be positive!")
+
+        if np.any(_y <=0):
+            raise ValueError("Function values should be positive!")
+
         # Sort the nodes
         sortindices = np.argsort(self._u)
         self._u = self._u[sortindices]
         self._z = self._z[sortindices]
 
         if normalize:
-            self._z /= self.norm
-            self._z *= normvalue
+            self._z -= np.log10(self.norm)
+            self._z += np.log10(normvalue)
 
     @classmethod
     def flat(cls, xmin, xmax, y=None):
@@ -70,7 +76,7 @@ class LLPLF:
             y: float height (if None, the height is set to 1.0/(xmax - xmin))
 
         Returns:
-            instance of PiecewiseLinearFunction
+            instance of LLPLF
         """
 
         if xmax < xmin:

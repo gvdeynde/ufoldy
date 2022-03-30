@@ -11,15 +11,16 @@ from ufoldy.reactionrate import ReactionRate
 
 
 @pytest.fixture
-def small():
-    x = [0, 1, 3]
-    y = [1, 2, -1]
+def llplf_a():
+    x = np.power(10.0, np.array([-4.0, -3.0, -2.0, -1.0]))
+    y = np.power(10.0, np.array([1.0, 2.0, 1.0, 2.0]))
 
-    return x, y
+    norm = 5.229758509299405
 
+    return x, y, norm
 
-def test_init(small):
-    x, y = small
+def test_init(llplf_a):
+    x, y, norm = llplf_a
 
     rr = ReactionRate("test", x, y, 1.23, 0.98)
 
