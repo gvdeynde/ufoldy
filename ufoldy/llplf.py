@@ -24,8 +24,11 @@ class LLPLF:
         """
 
         # We store the log10 of the nodes and function values
-        self._u = np.log10(np.asarray(x, dtype=float))
-        self._z = np.log10(np.asarray(y, dtype=float))
+        _x = np.atleast_1d(np.asarray(x, dtype=float))
+        _y = np.atleast_1d(np.asarray(y, dtype=float))
+
+        self._u = np.log10(_x)
+        self._z = np.log10(_y)
 
         shapeu = self._u.shape
         shapez = self._z.shape
@@ -38,6 +41,8 @@ class LLPLF:
 
         if shapeu[0] != shapez[0]:
             raise ValueError("x and y should have the same length")
+        elif shapeu[0] == 1:
+            raise ValueError("x and y should have at least length 2")
 
         # Check for unique nodes
         t, counts = np.unique(self._u, return_counts=True)
@@ -120,7 +125,7 @@ class LLPLF:
         slope = np.diff(self._z) / np.diff(self._u)
 
         # Need to take care of m=-1 (or close)
-        mask = np.isclose(slope, -1., rtol=1e-8)
+        mask = np.isclose(slope, -1.0, rtol=1e-8)
 
         slopem = ma.MaskedArray(slope, mask, fill_value=np.nan)
 
@@ -130,12 +135,14 @@ class LLPLF:
         # Calculate the integral over each subinterval except the ones where
         # slope is -1 (using masked array). Fill the intervals where slope is
         # -1 with np.nan
-        result = (F[:-1] / (slopem + 1) * (x[1:] * np.power(x[1:] / x[:-1], slopem) - x[:-1])).filled()
+        result = (
+            F[:-1] / (slopem + 1) * (x[1:] * np.power(x[1:] / x[:-1], slopem) - x[:-1])
+        ).filled()
 
         # Find the indices where slope was -1 and fill those intervals with ln
         # formula
         idx = np.where(mask)[0]
-        result[idx] = F[idx]*x[idx]*np.log(x[idx+1]/x[idx])
+        result[idx] = F[idx] * x[idx] * np.log(x[idx + 1] / x[idx])
 
         norm = np.sum(result)
 

@@ -6,7 +6,7 @@ import pytest
 from pytest import approx
 import numpy as np
 
-from ufoldy.piecewiselinear import PiecewiseLinearFunction as PLF
+from ufoldy.llplf import LLPLF
 from ufoldy.reactionrate import ReactionRate
 
 
@@ -24,6 +24,6 @@ def test_init(small):
     rr = ReactionRate("test", x, y, 1.23, 0.98)
 
     assert rr.name == "test"
-    assert isinstance(rr.cross_section, PLF)
+    assert isinstance(rr.cross_section, LLPLF)
     assert rr.reaction_rate == approx(1.23)
     assert rr.reaction_rate_error == approx(0.98)
