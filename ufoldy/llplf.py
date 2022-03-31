@@ -45,13 +45,13 @@ class LLPLF:
         if np.any(_x <= 0):
             raise ValueError("Nodes should be positive!")
 
-        if np.any(_y <=0):
+        if np.any(_y <= 0):
             raise ValueError("Function values should be positive!")
 
         # Check for unique nodes
-        t, counts = np.unique(_x, return_counts=True)
+        t, counts = np.unique(_x.round(decimals=15), return_counts=True)
 
-        if np.any(counts != np.ones_like(_x, dtype=np.int64)):
+        if np.any(counts > 1):
             raise ValueError("Nodes should be unique!")
 
         self._u = np.log10(_x)
@@ -251,44 +251,6 @@ class LLPLF:
 
         unionized_x = np.power(10.0, unionized_u)
         return LLPLF(unionized_x, self(unionized_x) * other(unionized_x))
-
-    def convolute(self, pwlf2):
-        """Calculates a convolution of two piecewiselinearfunctions
-        Args:
-            pwlf2: (:obj:`PiecewiseLinearFunction`) the second
-            PiecewiseLinearFunction
-
-        Returns:
-            float: the result of the convolution integral
-        """
-        # First unionize the nodes
-        unionized_x = np.unique(np.concatenate((self._x, pwlf2.x)))
-
-        # Get upper and lower integration boundary: only integrate where both functions are defined
-        min_x = np.max([self._x[0], pwlf2.x[0]])
-        max_x = np.min([self._x[-1], pwlf2.x[-1]])
-
-        unionized_x = unionized_x[unionized_x >= min_x]
-        unionized_x = unionized_x[unionized_x <= max_x]
-
-        # Calculate the integral using second order Gauss-Legendre quadrature
-        # (which is exact for a piecewise quadratic function (product of two
-        # piecewise linear functions)
-
-        # Get the Gauss-Legendre nodes per interval
-        z = (
-            np.outer((unionized_x[1:] - unionized_x[:-1]), (self.nodes + 1) / 2)
-        ).flatten() + np.outer(unionized_x[:-1], [1, 1]).flatten()
-
-        # Evaluate the product of the two piecewise linear functions on these
-        # nodes
-        funz = self._fun(z) * pwlf2(z)
-
-        # Evaluate the Gauss-Legendre weighted sum
-        return np.dot(
-            (unionized_x[1:] - unionized_x[:-1]) / 2,
-            funz.reshape((int(funz.shape[0] / 2), 2)).sum(axis=1),
-        )
 
     def copy(self):
         """
