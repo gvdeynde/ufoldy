@@ -6,8 +6,8 @@ This module provides a class for unfolding neutron spectra
 from abc import ABC, abstractmethod
 import numpy as np
 from scipy.optimize import minimize, shgo
-from ufoldy.piecewiselinear import PiecewiseLinearFunction as PLF
-from ufoldy.piecewiselinear import refine_log
+from optimparallel import minimize_parallel
+from ufoldy.llplf import LLPLF
 from ufoldy.reactionrate import ReactionRate
 
 
@@ -16,14 +16,13 @@ class UFO(ABC):
     Subclasses have to implement the minimization of a functional step.
     """
 
-    def __init__(self, reaction_rates, initial_guess, refiner=refine_log, verbosity=0):
+    def __init__(self, reaction_rates, initial_guess, verbosity=0):
         """
         Args:
             reaction_rates (:obj:`list` of :obj:`ReactionRate`): the reaction
             rates to use in the unfolding procedure
             initial_guess (:obj: `PiecewiseLinearFunction`): an initial guess
             for the neutron spectrum.
-            refiner (:fun:) refiner function
             verbose (int): level of verbosity
                             0: silent
                             1: only high-level
@@ -33,7 +32,6 @@ class UFO(ABC):
         self._reaction_rates = reaction_rates
         self._initial_guess = initial_guess.copy()
         self._verbosity = verbosity
-        self._refiner = refiner
 
         self._solutions = []
 
@@ -79,9 +77,10 @@ class UFO(ABC):
         rr_errors = np.zeros(Nrr)
 
         for i in range(Nrr):
-            rr_errors[i] = self._reaction_rates[i].reaction_rate - self._solutions[
-                idx
-            ].convolute(self._reaction_rates[i].cross_section)
+            rr_errors[i] = (
+                self._reaction_rates[i].reaction_rate
+                - (self._solutions[idx] * self._reaction_rates[i].cross_section).norm
+            )
 
         return rr_errors
 
@@ -92,15 +91,14 @@ class UFO(ABC):
     def unfold(self, Nrefine):
         """
         This method performs the whole unfolding, using `Nrefine` refinement
-        steps using the refiner method. It "clears" the whole solution list at
-        the start!
+        steps using the logarithmic refiner method. It "clears" the whole solution
+        list at the start!
 
          Args:
              Nrefine (int): number of refinement steps
 
          Returns:
-             (list): self._solutions. A list of `PiecewiseLinearFunction`
-             objects
+             (list): self._solutions. A list of `LLPLF` objects
         """
 
         # Clean the solution list
@@ -111,6 +109,11 @@ class UFO(ABC):
             print("Start with optimizing initial guess.")
 
         self.unfold_initial()
+
+        if self._verbosity > 1:
+            print(self._solutions[-1])
+            print("===========================")
+            print("\n")
 
         iref = 0
         while iref < Nrefine:
@@ -151,7 +154,7 @@ class UFO(ABC):
             guess = self._solutions[-1].copy()
 
             # Refine it according to the refiner strategy
-            guess.refine(self._refiner)
+            guess.refine()
 
             # Optimize
             result = self.optimize(guess, False)
@@ -173,7 +176,6 @@ class Tikhonov(UFO):
         reaction_rates,
         initial_guess,
         weights=None,
-        refiner=refine_log,
         verbosity=0,
     ):
         """
@@ -186,13 +188,12 @@ class Tikhonov(UFO):
             functional. First weight is for the residual, second weight is for
             the deviation from the prior, third weight is for the derivative,
             fourth weight is for the curvature.
-            refiner (:fun:) refiner function
             verbose (int): level of verbosity
                             0: silent
                             1: only high-level
                             2: puts the optimizer algorithm also to verbose
         """
-        super().__init__(reaction_rates, initial_guess, refiner, verbosity)
+        super().__init__(reaction_rates, initial_guess, verbosity)
 
         if not weights:
             w = np.ones(4)
@@ -208,7 +209,7 @@ class Tikhonov(UFO):
         self._guess = guess.copy()
         self._initial = initial
 
-        x0 = guess.y
+        x0 = guess.z
 
         options = {}
         tol = 1e-8
@@ -217,19 +218,18 @@ class Tikhonov(UFO):
             options["disp"] = True
 
         # Selection of minimizer could also be made more flexible
-        method = "Nelder-Mead"
-        options = {**options, **{"adaptive": True, "xatol": 1e-9, "fatol": 1e-7}}
+        # method = "Nelder-Mead"
+        # options = {**options, **{"adaptive": True, "xatol": 1e-9, "fatol": 1e-7}}
 
         # method = "trust-constr"
         # options = {**options, **{"verbose": self._verbosity}}
 
-        # method = "L-BFGS-B"
-        # options = {**options, **{"gtol":1e-8}}
-        # if self._verbosity > 1:
-        # options["iprint"] = 99
+        method = "L-BFGS-B"
+        options = {**options, **{"gtol": 1e-8}}
+        if self._verbosity > 1:
+            options["iprint"] = 99
 
-
-        bounds = [(0, None) for xi in x0]
+        bounds = [(-12, -6) for xi in x0]
 
         optim_res = minimize(
             self.tikhonov_functional,
@@ -240,25 +240,32 @@ class Tikhonov(UFO):
             tol=tol,
         )
 
-        guess.y = optim_res.x
+        # options = {**options, "f_tol": 1e-8}
+        # optim_res = shgo(self.tikhonov_functional, bounds, options=options)
+
+        # optim_res = minimize_parallel(
+            # fun=self.tikhonov_functional, bounds=bounds, x0=x0, parallel=options
+        # )
+
+        guess.z = optim_res.x
 
         self._guess = None
         self._initial = None
 
         return guess
 
-    def tikhonov_functional(self, y):
+    def tikhonov_functional(self, z):
         """This function calculates the Tikhonov functional"""
 
-        # Update the guess with the new `y` value
-        self._guess.y = y
+        # Update the guess with the new `z` value
+        self._guess.z = z
 
         # Calculate reaction rate residual
         rr_res = np.zeros(len(self._reaction_rates))
 
         for i, rr in enumerate(self._reaction_rates):
             rr_res[i] = (
-                rr.cross_section.convolute(self._guess) - rr.reaction_rate
+                (rr.cross_section * self._guess).norm - rr.reaction_rate
             ) ** 2 / rr.reaction_rate_error
 
         rr_residual = np.sqrt(np.sum(rr_res))
@@ -271,15 +278,19 @@ class Tikhonov(UFO):
         # that value to the current `y` estimates.
 
         if self._initial:
-            difference_prior = np.linalg.norm(y - self._initial_guess(self._guess.x))
+            difference_prior = np.linalg.norm(
+                z - np.log10(self._initial_guess(self._guess.x))
+            )
         else:
-            difference_prior = np.linalg.norm(y - self._solutions[-1](self._guess.x))
+            difference_prior = np.linalg.norm(
+                z - np.log10(self._solutions[-1](self._guess.x))
+            )
 
         # Calculate smoothness
-        smoothness = np.linalg.norm(np.diff(y))
+        smoothness = np.linalg.norm(np.diff(z))
 
         # Calculate curvature
-        curvature = np.linalg.norm(np.diff(y, 2))
+        curvature = np.linalg.norm(np.diff(z, 2))
 
         # Total residual
         total_residual = np.dot(

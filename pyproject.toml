@@ -8,6 +8,8 @@ authors = [{name = "Gert Van den Eynde", email = "gvdeynde@sckcen.be"}]
 license = {file = "LICENSE"}
 classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version", "description"]
+readme = "README.md"
+
 
 [project.urls]
 Home = "https://github.com/gvdeynde/ufoldy"

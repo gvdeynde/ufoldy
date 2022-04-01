@@ -24,8 +24,8 @@ class LLPLF:
         """
 
         # We store the log10 of the nodes and function values
-        _x = np.atleast_1d(np.asarray(x, dtype=float))
-        _y = np.atleast_1d(np.asarray(y, dtype=float))
+        _x = np.atleast_1d(np.asarray(x, dtype=np.float64))
+        _y = np.atleast_1d(np.asarray(y, dtype=np.float64))
 
         shapex = _x.shape
         shapey = _y.shape
@@ -45,8 +45,11 @@ class LLPLF:
         if np.any(_x <= 0):
             raise ValueError("Nodes should be positive!")
 
-        if np.any(_y <= 0):
+        if np.any(_y < 0):
             raise ValueError("Function values should be positive!")
+
+        # Replace all zero values by tiny
+        _y = np.where(_y < np.finfo(np.float64).tiny, np.finfo(np.float64).tiny, _y)
 
         # Check for unique nodes
         t, counts = np.unique(_x.round(decimals=15), return_counts=True)
@@ -168,6 +171,30 @@ class LLPLF:
         raise ValueError("Shouldn't set 'x'")
 
     @property
+    def u(self):
+        """Returns the log10 of the nodes."""
+        return self._u.copy()
+
+    @u.setter
+    def u(self, u):
+        raise ValueError("Shouldn't set the 'u'")
+
+    @property
+    def z(self):
+        """Returns the log10 values of the function values."""
+        return self._z
+
+    @z.setter
+    def z(self, z):
+        if self._u.shape != z.shape:
+            raise ValueError(f"Incompatible shape {self._u.shape} vs {z.shape}")
+
+        if self._u.shape[0] != z.shape[0]:
+            raise ValueError(f"Incompatible length {self._u.shape[0]} vs {z.shape[0]}")
+
+        self._z = z
+
+    @property
     def y(self):
         """Returns the function values at the nodes."""
         return np.power(10, self._z)
@@ -178,6 +205,24 @@ class LLPLF:
         self._z = np.log10(np.atleast_1d(y))
         if self._u.shape != self._z.shape:
             raise ValueError("y has wrong shape")
+
+    @property
+    def max(self):
+        """Returns the maximum function value."""
+        return np.power(10, np.max(self._z))
+
+    @max.setter
+    def max(self, v):
+        raise ValueError("max is read-only")
+
+    @property
+    def min(self):
+        """Returns the minimum function value."""
+        return np.power(10, np.min(self._z))
+
+    @min.setter
+    def min(self, v):
+        raise ValueError("min is read-only")
 
     def __str__(self):
         """String representation for a piecewiselinear function."""

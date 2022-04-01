@@ -137,13 +137,17 @@ def test_init_nonpositive_nodes():
 
 def test_init_nonpositive_fvals():
     with pytest.raises(ValueError):
-        p = LLPLF([1, 2], [0, 2])
-
-    with pytest.raises(ValueError):
         p = LLPLF([1, 2], [-1, 2])
 
     with pytest.raises(ValueError):
         p = LLPLF([1, 2], [1, -2])
+
+def test_init_zero_fvals():
+    p = LLPLF([1, 2, 3], [1, 0, 1])
+
+    assert p._z[0] == approx(0.)
+    assert p._z[1] == approx(np.log10(np.finfo(np.float64).tiny))
+    assert p._z[2] == approx(0.)
 
 
 def test_init_nonuniquenodes():
