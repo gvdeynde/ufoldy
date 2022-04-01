@@ -6,7 +6,6 @@ This module provides a class for unfolding neutron spectra
 from abc import ABC, abstractmethod
 import numpy as np
 from scipy.optimize import minimize, shgo
-from optimparallel import minimize_parallel
 from ufoldy.llplf import LLPLF
 from ufoldy.reactionrate import ReactionRate
 
@@ -214,20 +213,16 @@ class Tikhonov(UFO):
         options = {}
         tol = 1e-8
 
-        if self._verbosity > 1:
-            options["disp"] = True
-
         # Selection of minimizer could also be made more flexible
         # method = "Nelder-Mead"
         # options = {**options, **{"adaptive": True, "xatol": 1e-9, "fatol": 1e-7}}
 
         # method = "trust-constr"
-        # options = {**options, **{"verbose": self._verbosity}}
 
         method = "L-BFGS-B"
-        options = {**options, **{"gtol": 1e-8}}
-        if self._verbosity > 1:
-            options["iprint"] = 99
+
+        # method = "TNC"
+        # options["ftol"] = 1e-8
 
         bounds = [(-12, -6) for xi in x0]
 
@@ -242,10 +237,6 @@ class Tikhonov(UFO):
 
         # options = {**options, "f_tol": 1e-8}
         # optim_res = shgo(self.tikhonov_functional, bounds, options=options)
-
-        # optim_res = minimize_parallel(
-            # fun=self.tikhonov_functional, bounds=bounds, x0=x0, parallel=options
-        # )
 
         guess.z = optim_res.x
 
