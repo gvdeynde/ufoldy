@@ -143,7 +143,7 @@ class PiecewiseFunction(ABC):
         )
         return retval
 
-    def insert_points(self, newx, newy=None):
+    def insert_nodes(self, newx, newy=None):
         """Insert new nodes and corresponding function values. Important: the
         function does not re-normalize the piecewiselinear function!
 
@@ -167,6 +167,27 @@ class PiecewiseFunction(ABC):
         self._y = np.insert(self._y, indices, newy)
 
         return self
+
+    def refine_log(self):
+        """
+        Refine the nodes in a logarithmic way
+        """
+
+        logx = np.log10(self._x)
+        newlogx = (logx[1:] + logx[:-1]) / 2
+
+        newx = np.power(10.0, newlogx)
+
+        self.insert_nodes(newx)
+
+    def refine_lin(self):
+        """
+        Refine the nodes in a linear way
+        """
+
+        newx = (self._x[1:] + self._x[:-1]) / 2.0
+
+        self.insert_nodes(newx)
 
     @abstractmethod
     def copy(self):
@@ -240,9 +261,8 @@ class PCF(PiecewiseFunction):
 
         idx = np.searchsorted(self._x, x, side="right") - 1
 
-
         result = np.where(
-            np.logical_and(idx >= 0, idx < len(self._x)-1), self._y[idx], 0.0
+            np.logical_and(idx >= 0, idx < len(self._x) - 1), self._y[idx], 0.0
         )
 
         return result

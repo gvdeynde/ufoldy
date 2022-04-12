@@ -223,7 +223,7 @@ def test_PLF_insert_point(small):
 
     p = PLF(x, y)
 
-    p.insert_points(0.5, 1)
+    p.insert_nodes(0.5, 1)
 
     assert p(0.25) == approx(1.0)
     assert p(0.5) == approx(1.0)
@@ -235,7 +235,7 @@ def test_PLF_insert_point_noy(small):
 
     p = PLF(x, y)
 
-    p.insert_points(7 / 3)
+    p.insert_nodes(7 / 3)
 
     assert p(-1) == approx(0.0)
     assert p(0) == approx(1.0)
@@ -247,7 +247,7 @@ def test_PLF_insert_point_noy(small):
     assert p(4) == approx(0.0)
 
 
-def test_PLF_insert_points(small):
+def test_PLF_insert_nodes(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -256,12 +256,34 @@ def test_PLF_insert_points(small):
     newx = [(p.x[i] + p.x[i + 1]) / 2 for i in range(2)]
     newy = p(newx)
 
-    q.insert_points(newx, newy)
+    q.insert_nodes(newx, newy)
 
     evalx = np.linspace(x[0], x[-1], 11)
 
     for xx in evalx:
         assert p(xx) == approx(q(xx))
+
+
+def test_PLF_refine_lin():
+    x = np.array([-2, 0, 2])
+    y = np.array([1, 2, 1])
+
+    p = PLF(x, y)
+
+    p.refine_lin()
+
+    assert (p.x) == approx(np.array([-2, -1, 0, 1, 2]))
+
+
+def test_PLF_refine_log():
+    x = np.power(10.0, [-2, 0, 2])
+    y = np.array([1, 2, 1])
+
+    p = PLF(x, y)
+
+    p.refine_log()
+
+    assert (np.log10(p.x)) == approx(np.array([-2, -1, 0, 1, 2]))
 
 
 def test_PLF_copy(small):
@@ -339,4 +361,3 @@ def test_PCF_copy(small):
 
     assert np.any(a.x == b.x) and not a.x is b.x
     assert np.any(a.y == b.y) and not a.y is b.y
-
