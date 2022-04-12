@@ -264,6 +264,56 @@ def test_PLF_insert_nodes(small):
         assert p(xx) == approx(q(xx))
 
 
+def test_PLF_insert_nodes_mixed(small):
+    x, y, *r = small
+
+    p = PLF(x, y)
+
+    p.insert_nodes([0.5, 1], [0, 0])
+
+    assert p(-1) == approx(0.0)
+    assert p(0) == approx(1.0)
+    assert p(0.5) == approx(0.0)
+    assert p(1) == approx(0)
+    assert p(2) == approx(-0.5)
+    assert p(3) == approx(-1.0)
+    assert p(4) == approx(0.0)
+
+
+def test_PLF_insert_nodes_mixed2(small):
+    x, y, *r = small
+
+    p = PLF(x, y)
+
+    p.insert_nodes([0.5, 1], [1.5, 2])
+
+    assert p(-1) == approx(0.0)
+    assert p(0) == approx(1.0)
+    assert p(0.5) == approx(1.5)
+    assert p(1) == approx(2)
+    assert p(2) == approx(0.5)
+    assert p(7 / 3) == approx(0.0)
+    assert p(3) == approx(-1.0)
+    assert p(4) == approx(0.0)
+
+
+def test_PLF_insert_nodes_mixed_noy(small):
+    x, y, *r = small
+
+    p = PLF(x, y)
+
+    p.insert_nodes([0.5, 1])
+
+    assert p(-1) == approx(0.0)
+    assert p(0) == approx(1.0)
+    assert p(0.5) == approx(1.5)
+    assert p(1) == approx(2)
+    assert p(2) == approx(0.5)
+    assert p(7 / 3) == approx(0.0)
+    assert p(3) == approx(-1.0)
+    assert p(4) == approx(0.0)
+
+
 def test_PLF_refine_lin():
     x = np.array([-2, 0, 2])
     y = np.array([1, 2, 1])

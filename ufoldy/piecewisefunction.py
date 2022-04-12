@@ -157,14 +157,29 @@ class PiecewiseFunction(ABC):
             (:obj: `PiecewiseFunction`): self
         """
 
+        newx = np.atleast_1d(newx)
+
         # If new y values not given, calculate them with linear interpolation
         if newy is None:
-            newy = self(newx)
+            newy = np.atleast_1d(self(newx))
 
-        indices = np.searchsorted(self._x, newx)
+        # Make sure newy is array like
+        newy = np.atleast_1d(newy)
 
-        self._x = np.insert(self._x, indices, newx)
-        self._y = np.insert(self._y, indices, newy)
+        # Check if new nodes are already in the nodes list (replacement) or
+        # if they are new (insertion)
+        idxold = np.in1d(newx, self._x)
+
+        # Add new nodes
+        if np.any(~idxold):
+            indices = np.searchsorted(self._x, newx[~idxold])
+            self._x = np.insert(self._x, indices, newx[~idxold])
+            self._y = np.insert(self._y, indices, newy[~idxold])
+
+        # Replace yvalues for existing nodes
+        if np.any(idxold):
+            yidx = np.where(self._x == newx[idxold])
+            self._y[yidx] = newy[idxold]
 
         return self
 
@@ -248,6 +263,22 @@ class PLF(PiecewiseFunction):
             (:obj: `PLF`): a deep copy of itself
         """
         return PLF(self._x, self._y, normalize=True, normvalue=self.norm)
+
+    def convolute(self, pcf):
+        """
+        Return the convolution (integral) of this PLF with a PCF
+
+        Args:
+            pcf: (:obj: `PCF`): the piecewise constant function
+
+        Returns:
+            float: the convolution integral
+        """
+
+        if not isinstance(pcf, PCF):
+            raise ValueError("I can only convolute a PLF with a PCF")
+
+        return 1.0
 
 
 class PCF(PiecewiseFunction):
