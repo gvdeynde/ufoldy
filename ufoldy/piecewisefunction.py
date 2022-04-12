@@ -51,7 +51,7 @@ class PiecewiseFunction(ABC):
         self._y = self._y[sortindices]
 
         if normalize:
-            self._y /= self.norm
+            self._y /= self.norm()
             self._y *= normvalue
 
     @classmethod
@@ -89,14 +89,9 @@ class PiecewiseFunction(ABC):
     def slopes(self, val):
         raise ValueError("Slopes is a read-only property")
 
-    @property
     @abstractmethod
-    def norm(self):
+    def norm(self, left, right):
         pass
-
-    @norm.setter
-    def norm(self, val):
-        raise ValueError("Norm is a read-only property")
 
     @property
     def x(self):
@@ -162,24 +157,29 @@ class PiecewiseFunction(ABC):
         # If new y values not given, calculate them with linear interpolation
         if newy is None:
             newy = np.atleast_1d(self(newx))
+        else:
+            # Make sure newy is array like
+            newy = np.atleast_1d(newy)
 
-        # Make sure newy is array like
-        newy = np.atleast_1d(newy)
+        # Naive implementation
+        # First overwrite the existing nodes
+        existing_idx = {}
+        for i, x in enumerate(newx):
+            idx = np.where(self._x == x)[0]
+            print(self._x, x, idx)
+            if len(idx) > 0:
+                # the node is already present
+                existing_idx[i]=idx[0]
+                self._y[idx] = newy[i]
 
-        # Check if new nodes are already in the nodes list (replacement) or
-        # if they are new (insertion)
-        idxold = np.in1d(newx, self._x)
+        # Now insert all new nodes
+        if len(existing_idx) != len(newx):
+            mask = np.ones(newx.size, dtype=bool)
+            mask[list(existing_idx.keys())] = False
 
-        # Add new nodes
-        if np.any(~idxold):
-            indices = np.searchsorted(self._x, newx[~idxold])
-            self._x = np.insert(self._x, indices, newx[~idxold])
-            self._y = np.insert(self._y, indices, newy[~idxold])
-
-        # Replace yvalues for existing nodes
-        if np.any(idxold):
-            yidx = np.where(self._x == newx[idxold])
-            self._y[yidx] = newy[idxold]
+            idx = np.searchsorted(self._x, newx[mask])
+            self._x = np.insert(self._x, idx, newx[mask])
+            self._y = np.insert(self._y, idx, newy[mask])
 
         return self
 
@@ -248,9 +248,11 @@ class PLF(PiecewiseFunction):
     def slopes(self):
         return np.diff(self._y) / np.diff(self._x)
 
-    @PiecewiseFunction.norm.getter
-    def norm(self):
-        return np.trapz(self._y, self._x)
+    def norm(self, left=0, right=None):
+        if not right:
+            right = len(self._x) - 1
+
+        return np.trapz(self._y[left : right + 1], self._x[left : right + 1])
 
     def copy(self):
         """
@@ -262,23 +264,7 @@ class PLF(PiecewiseFunction):
         Returns:
             (:obj: `PLF`): a deep copy of itself
         """
-        return PLF(self._x, self._y, normalize=True, normvalue=self.norm)
-
-    def convolute(self, pcf):
-        """
-        Return the convolution (integral) of this PLF with a PCF
-
-        Args:
-            pcf: (:obj: `PCF`): the piecewise constant function
-
-        Returns:
-            float: the convolution integral
-        """
-
-        if not isinstance(pcf, PCF):
-            raise ValueError("I can only convolute a PLF with a PCF")
-
-        return 1.0
+        return PLF(self._x, self._y, normalize=True, normvalue=self.norm())
 
 
 class PCF(PiecewiseFunction):
@@ -286,14 +272,18 @@ class PCF(PiecewiseFunction):
     PiecewiseFunction.
     """
 
+    def __init__(self, x, y, normalize=False, normvalue=1.0):
+        super().__init__(x, y, normalize, normvalue)
+
+        # make sure the last y value is zero
+        self._y[-1] = 0.0
+
     def __call__(self, x):
-        # Initialise
-        # result = np.zeros_like(np.atleast_1d(x))
 
         idx = np.searchsorted(self._x, x, side="right") - 1
 
         result = np.where(
-            np.logical_and(idx >= 0, idx < len(self._x) - 1), self._y[idx], 0.0
+            np.logical_and(idx >= 0, idx < len(self._x)), self._y[idx], 0.0
         )
 
         return result
@@ -302,9 +292,11 @@ class PCF(PiecewiseFunction):
     def slopes(self):
         return np.ones_like(self._x)[:-1]
 
-    @PiecewiseFunction.norm.getter
-    def norm(self):
-        return np.dot(self._y[:-1], np.diff(self._x))
+    def norm(self, left=0, right=None):
+        if not right:
+            right = len(self._x)
+
+        return np.dot(self._y[left : right - 1], np.diff(self._x[left:right]))
 
     def copy(self):
         """
@@ -316,4 +308,60 @@ class PCF(PiecewiseFunction):
         Returns:
             (:obj: `PCF`): a deep copy of itself
         """
-        return PCF(self._x, self._y, normalize=True, normvalue=self.norm)
+        return PCF(self._x, self._y, normalize=True, normvalue=self.norm())
+
+
+def convolute(pcf, plf):
+    """
+    Return the convolution (integral) of a PLF with a PCF
+
+    Args:
+        plf: (:obj: `PLF`): the piecewise constant function
+        pcf: (:obj: `PCF`): the piecewise constant function
+
+    Returns:
+        float: the convolution integral
+    """
+
+    if not isinstance(plf, PLF):
+        raise ValueError("I can only convolute a PLF with a PCF")
+
+    if not isinstance(pcf, PCF):
+        raise ValueError("I can only convolute a PLF with a PCF")
+
+    # Find left and right boundaries. Beyond those either PLF or PCF is
+    # zero and doesn't contribute to the integral
+    # left_boundary = np.max([plf.x[0], pcf.x[0]])
+    # right_boundary = np.min([plf.x[-1], pcf.x[-1]])
+
+    print("here")
+    print("plf\n",plf)
+
+    # Insert PCF nodes into a local copy of plf
+    lplf = plf.copy()
+    lplf.insert_nodes(pcf.x)
+
+    # Insert left and right end-point of plf in local copy of PCF
+    lpcf = pcf.copy()
+    print("lpcf before inserting nodes\n",lpcf)
+    lpcf.insert_nodes([plf.x[0], plf.x[-1]])
+    print("lpcf after inserting nodes\n", lpcf)
+    # Set lpcf nodes left and right to zero
+    lpcf.y = np.where(
+        np.logical_or(lpcf.x < plf.x[0], lpcf.x >= plf.x[-1]), 0.0, lpcf.y
+    )
+
+    print("lpcf after clipping", lpcf)
+
+    result = 0.0
+    for i in range(len(lpcf.x) - 1):
+        k = np.where(lplf.x == lpcf.x[i])[0][0]
+        l = np.where(lplf.x == lpcf.x[i + 1])[0][0]
+        print(i, lpcf.x[i])
+        print(k, l, lplf.x[k : l + 1])
+        print(lpcf.y[i] * np.trapz(lplf.y[k : l + 1], lplf.x[k : l + 1]))
+        result += lpcf.y[i] * np.trapz(lplf.y[k : l + 1], lplf.x[k : l + 1])
+        print("-")
+
+    print(result)
+    return result

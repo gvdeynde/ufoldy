@@ -6,7 +6,7 @@ import pytest
 from pytest import approx
 import numpy as np
 from scipy.integrate import quad
-from ufoldy.piecewisefunction import PLF, PCF
+from ufoldy.piecewisefunction import PLF, PCF, convolute
 
 
 def argsort(seq):
@@ -130,7 +130,7 @@ def test_PLF_init_normalized(small):
 
     p = PLF(x, y, normalize=True)
 
-    assert p.norm == approx(1.0)
+    assert p.norm() == approx(1.0)
 
 
 def test_PLF_init_normalized_to_number(small):
@@ -138,7 +138,7 @@ def test_PLF_init_normalized_to_number(small):
 
     p = PLF(x, y, normalize=True, normvalue=8.0)
 
-    assert p.norm == approx(8.0)
+    assert p.norm() == approx(8.0)
 
 
 def test_PLF_init_emptyxy():
@@ -206,19 +206,46 @@ def test_PLF_norm(small):
 
     p = PLF(x, y)
 
-    assert norm == approx(p.norm)
+    assert norm == approx(p.norm())
 
 
-def test_PLF_norm_setter(small):
-    x, y, norm, *r = small
+def test_PLF_norm_partial1(small):
+    x, y, *r = small
 
     p = PLF(x, y)
 
-    with pytest.raises(ValueError):
-        p.norm = 1.0
+    assert p.norm(1) == approx(1.0)
 
 
-def test_PLF_insert_point(small):
+def test_PLF_norm_partial2(small):
+    x, y, *r = small
+
+    p = PLF(x, y)
+
+    assert p.norm(0, 1) == approx(1.5)
+
+
+def test_PLF_insert_node_before_left(small):
+    x, y, *r = small
+
+    p = PLF(x, y)
+
+    p.insert_nodes(-1, -1)
+
+    assert p(-0.5) == approx(0.0)
+
+
+def test_PLF_insert_node_after_right(small):
+    x, y, *r = small
+
+    p = PLF(x, y)
+
+    p.insert_nodes(4, 1)
+
+    assert p(3.5) == approx(0.0)
+
+
+def test_PLF_insert_node(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -230,7 +257,7 @@ def test_PLF_insert_point(small):
     assert p(1.0) == approx(2.0)
 
 
-def test_PLF_insert_point_noy(small):
+def test_PLF_insert_node_noy(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -313,6 +340,19 @@ def test_PLF_insert_nodes_mixed_noy(small):
     assert p(3) == approx(-1.0)
     assert p(4) == approx(0.0)
 
+def test_PCF_insert_nodes_sim(small):
+    x, y, *r = small
+
+    p = PCF(x, y)
+
+    x = p.x
+    y = p.y
+
+    p.insert_nodes(x)
+
+    assert p.x == approx(x)
+    assert p.y == approx(y)
+
 
 def test_PLF_refine_lin():
     x = np.array([-2, 0, 2])
@@ -373,6 +413,13 @@ def test_PLF_flat_swapx():
     assert a.y[0] == approx(0.5)
     assert a.y[1] == approx(0.5)
 
+def test_PCF_eval(small):
+    x, y, *r = small
+
+    p = PCF(x, y)
+
+    assert(p.y[-1] == p.y[-2])
+
 
 def test_PCF_eval(small):
     x, y, *r = small
@@ -399,7 +446,7 @@ def test_PCF_norm(small):
 
     p = PCF(x, y)
 
-    assert p.norm == approx(5.0)
+    assert p.norm() == approx(5.0)
 
 
 def test_PCF_copy(small):
@@ -411,3 +458,21 @@ def test_PCF_copy(small):
 
     assert np.any(a.x == b.x) and not a.x is b.x
     assert np.any(a.y == b.y) and not a.y is b.y
+
+
+def test_convolute(small):
+    x, y, *r = small
+
+    a = PLF(x, y)
+
+    cnodes = np.array(
+        [[0, 1, 3], [-1, 1, 3], [0.5, 1, 3], [-1, 1, 4], [-1, 1, 2], [0.5, 1, 2]]
+    )
+    cvals = np.array([0.5, 1, np.nan])
+
+    convs = np.array([1.75, 1.75, 1.4375, 1.75, 2, 1.6875])
+
+    for c, cint in zip(cnodes, convs):
+        b = PCF(c, cvals)
+        res = convolute(b, a)
+        assert res == approx(cint)
