@@ -6,7 +6,7 @@ import pytest
 from pytest import approx
 import numpy as np
 from scipy.integrate import quad
-from ufoldy.plf import PLF
+from ufoldy.piecewisefunction import PLF, PCF
 
 
 def argsort(seq):
@@ -25,7 +25,7 @@ def small():
     return x, y, norm, integral13, integral15
 
 
-def test_init_from_sorted_list(small):
+def test_PLF_init_from_sorted_list(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -35,7 +35,7 @@ def test_init_from_sorted_list(small):
         assert y[i] == p.y[i]
 
 
-def test_init_from_unsorted_list(small):
+def test_PLF_init_from_unsorted_list(small):
     x, y, *r = small
 
     x = x[::-1]
@@ -53,7 +53,7 @@ def test_init_from_unsorted_list(small):
         assert yy[idx[i]] == p.y[i]
 
 
-def test_init_wrong_xlist():
+def test_PLF_init_wrong_xlist():
     x = []
     y = [1, 2, 3]
 
@@ -61,7 +61,7 @@ def test_init_wrong_xlist():
         p = PLF(x, y)
 
 
-def test_init_wrong_ylist():
+def test_PLF_init_wrong_ylist():
     x = [1, 2, 3]
     y = []
 
@@ -69,7 +69,7 @@ def test_init_wrong_ylist():
         p = PLF(x, y)
 
 
-def test_init_noncompatlist():
+def test_PLF_init_noncompatlist():
     x = [1, 2]
     y = [1, 2, 3]
 
@@ -77,7 +77,7 @@ def test_init_noncompatlist():
         p = PLF(x, y)
 
 
-def test_init_nparray(small):
+def test_PLF_init_nparray(small):
     x, y, *r = small
 
     xa = np.array(x)
@@ -90,7 +90,7 @@ def test_init_nparray(small):
         assert ya[i] == p.y[i]
 
 
-def test_init_x2darray():
+def test_PLF_init_x2darray():
     x = np.array([[1, 2], [3, 4]])
     y = np.array([1, 2, 3, 4])
 
@@ -98,7 +98,7 @@ def test_init_x2darray():
         p = PLF(x, y)
 
 
-def test_init_y2darray():
+def test_PLF_init_y2darray():
     x = np.array([1, 2, 3, 4])
     y = np.array([[1, 2], [3, 4]])
 
@@ -106,7 +106,7 @@ def test_init_y2darray():
         p = PLF(x, y)
 
 
-def test_evaluate(small):
+def test_PLF_evaluate(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -125,7 +125,7 @@ def test_evaluate(small):
     )
 
 
-def test_init_normalized(small):
+def test_PLF_init_normalized(small):
     x, y, *r = small
 
     p = PLF(x, y, normalize=True)
@@ -133,7 +133,7 @@ def test_init_normalized(small):
     assert p.norm == approx(1.0)
 
 
-def test_init_normalized_to_number(small):
+def test_PLF_init_normalized_to_number(small):
     x, y, *r = small
 
     p = PLF(x, y, normalize=True, normvalue=8.0)
@@ -141,7 +141,7 @@ def test_init_normalized_to_number(small):
     assert p.norm == approx(8.0)
 
 
-def test_init_emptyxy():
+def test_PLF_init_emptyxy():
     p = PLF([], [])
 
     assert p.x[0] == approx(0.0)
@@ -150,7 +150,7 @@ def test_init_emptyxy():
     assert p.y[1] == approx(0.0)
 
 
-def test_xsetter(small):
+def test_PLF_xsetter(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -159,7 +159,7 @@ def test_xsetter(small):
         p.x = [-1]
 
 
-def test_ysetter(small):
+def test_PLF_ysetter(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -171,7 +171,7 @@ def test_ysetter(small):
     assert p(0.5) == approx(1.0)
 
 
-def test_ysetter_wrongshape(small):
+def test_PLF_ysetter_wrongshape(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -182,7 +182,7 @@ def test_ysetter_wrongshape(small):
         p.y = newy
 
 
-def test_slopes_setter(small):
+def test_PLF_slopes_setter(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -191,7 +191,7 @@ def test_slopes_setter(small):
         p.slopes = 1.0
 
 
-def test_str(small):
+def test_PLF_str(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -201,7 +201,7 @@ def test_str(small):
     assert f"{p}" == strval
 
 
-def test_norm(small):
+def test_PLF_norm(small):
     x, y, norm, *r = small
 
     p = PLF(x, y)
@@ -209,7 +209,7 @@ def test_norm(small):
     assert norm == approx(p.norm)
 
 
-def test_norm_setter(small):
+def test_PLF_norm_setter(small):
     x, y, norm, *r = small
 
     p = PLF(x, y)
@@ -218,7 +218,7 @@ def test_norm_setter(small):
         p.norm = 1.0
 
 
-def test_insert_point(small):
+def test_PLF_insert_point(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -230,7 +230,7 @@ def test_insert_point(small):
     assert p(1.0) == approx(2.0)
 
 
-def test_insert_point_noy(small):
+def test_PLF_insert_point_noy(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -247,7 +247,7 @@ def test_insert_point_noy(small):
     assert p(4) == approx(0.0)
 
 
-def test_insert_points(small):
+def test_PLF_insert_points(small):
     x, y, *r = small
 
     p = PLF(x, y)
@@ -264,7 +264,7 @@ def test_insert_points(small):
         assert p(xx) == approx(q(xx))
 
 
-def test_copy(small):
+def test_PLF_copy(small):
     x, y, *r = small
 
     a = PLF(x, y)
@@ -275,7 +275,7 @@ def test_copy(small):
     assert np.any(a.y == b.y) and not a.y is b.y
 
 
-def test_flat_noy():
+def test_PLF_flat_noy():
     a = PLF.flat(-1, 1)
 
     assert a.x[0] == approx(-1.0)
@@ -284,7 +284,7 @@ def test_flat_noy():
     assert a.y[1] == approx(0.5)
 
 
-def test_flat_y():
+def test_PLF_flat_y():
     a = PLF.flat(-1, 1, 10)
 
     assert a.x[0] == approx(-1.0)
@@ -293,10 +293,50 @@ def test_flat_y():
     assert a.y[1] == approx(10.0)
 
 
-def test_flat_swapx():
+def test_PLF_flat_swapx():
     a = PLF.flat(+1, -1)
 
     assert a.x[0] == approx(-1.0)
     assert a.x[1] == approx(+1.0)
     assert a.y[0] == approx(0.5)
     assert a.y[1] == approx(0.5)
+
+
+def test_PCF_eval(small):
+    x, y, *r = small
+
+    p = PCF(x, y)
+
+    xeval = [-1.0, +0.0, +0.5, +1.0, +2.0, +3.0, +4.0]
+    yeval = [0.0, +1.0, +1.0, +2.0, +2.0, +0.0, 0.0]
+
+    for xe, ye in zip(xeval, yeval):
+        assert p(xe) == approx(ye)
+
+
+def test_PCF_slopes(small):
+    x, y, *r = small
+
+    p = PCF(x, y)
+
+    assert p.slopes == approx(np.ones(2))
+
+
+def test_PCF_norm(small):
+    x, y, *r = small
+
+    p = PCF(x, y)
+
+    assert p.norm == approx(5.0)
+
+
+def test_PCF_copy(small):
+    x, y, *r = small
+
+    a = PCF(x, y)
+
+    b = a.copy()
+
+    assert np.any(a.x == b.x) and not a.x is b.x
+    assert np.any(a.y == b.y) and not a.y is b.y
+

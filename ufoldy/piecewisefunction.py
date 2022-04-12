@@ -80,15 +80,10 @@ class PiecewiseFunction(ABC):
     def __call__(self, x):
         pass
 
-    # @abstractmethod
-    # def _calculate_slopes(self):
-    # pass
-
     @property
     @abstractmethod
     def slopes(self):
         pass
-        # return self._calculate_slopes()
 
     @slopes.setter
     def slopes(self, val):
@@ -98,7 +93,6 @@ class PiecewiseFunction(ABC):
     @abstractmethod
     def norm(self):
         pass
-        # return np.trapz(self._y, self._x)
 
     @norm.setter
     def norm(self, val):
@@ -189,7 +183,6 @@ class PLF(PiecewiseFunction):
 
     def __call__(self, x):
         # Initialise
-
         result = np.zeros_like(np.atleast_1d(x))
 
         # Left end-point
@@ -234,3 +227,42 @@ class PLF(PiecewiseFunction):
             (:obj: `PLF`): a deep copy of itself
         """
         return PLF(self._x, self._y, normalize=True, normvalue=self.norm)
+
+
+class PCF(PiecewiseFunction):
+    """Class that implements Piecewise Constant Functions. Derived from
+    PiecewiseFunction.
+    """
+
+    def __call__(self, x):
+        # Initialise
+        # result = np.zeros_like(np.atleast_1d(x))
+
+        idx = np.searchsorted(self._x, x, side="right") - 1
+
+
+        result = np.where(
+            np.logical_and(idx >= 0, idx < len(self._x)-1), self._y[idx], 0.0
+        )
+
+        return result
+
+    @PiecewiseFunction.slopes.getter
+    def slopes(self):
+        return np.ones_like(self._x)[:-1]
+
+    @PiecewiseFunction.norm.getter
+    def norm(self):
+        return np.dot(self._y[:-1], np.diff(self._x))
+
+    def copy(self):
+        """
+        Return a full, deep copy of PCF.
+
+        Args:
+            none
+
+        Returns:
+            (:obj: `PCF`): a deep copy of itself
+        """
+        return PCF(self._x, self._y, normalize=True, normvalue=self.norm)
