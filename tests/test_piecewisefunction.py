@@ -6,7 +6,7 @@ import pytest
 from pytest import approx
 import numpy as np
 from scipy.integrate import quad
-from ufoldy.piecewisefunction import PLF, PCF, convolute
+from ufoldy.piecewisefunction import PLF, PCF
 
 
 def argsort(seq):
@@ -340,6 +340,7 @@ def test_PLF_insert_nodes_mixed_noy(small):
     assert p(3) == approx(-1.0)
     assert p(4) == approx(0.0)
 
+
 def test_PCF_insert_nodes_sim(small):
     x, y, *r = small
 
@@ -413,12 +414,13 @@ def test_PLF_flat_swapx():
     assert a.y[0] == approx(0.5)
     assert a.y[1] == approx(0.5)
 
+
 def test_PCF_eval(small):
     x, y, *r = small
 
     p = PCF(x, y)
 
-    assert(p.y[-1] == p.y[-2])
+    assert p.y[-1] == p.y[-2]
 
 
 def test_PCF_eval(small):
@@ -460,6 +462,20 @@ def test_PCF_copy(small):
     assert np.any(a.y == b.y) and not a.y is b.y
 
 
+def test_plf_partial_integrals(small):
+    x, y, *r = small
+
+    a = PLF(x, y)
+
+    b = PCF([0, 1, 3], [1, 1, 1])
+
+    pi = a.partial_integrals(b)
+
+    assert len(pi) == 2
+    assert pi[0] == approx(1.5)
+    assert pi[1] == approx(1.0)
+
+
 def test_convolute(small):
     x, y, *r = small
 
@@ -474,5 +490,5 @@ def test_convolute(small):
 
     for c, cint in zip(cnodes, convs):
         b = PCF(c, cvals)
-        res = convolute(b, a)
+        res = a.convolute(b)
         assert res == approx(cint)

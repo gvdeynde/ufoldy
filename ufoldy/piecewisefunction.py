@@ -87,11 +87,19 @@ class PiecewiseFunction(ABC):
 
     @slopes.setter
     def slopes(self, val):
-        raise ValueError("Slopes is a read-only property")
+        raise ValueError("slopes is a read-only property")
 
     @abstractmethod
     def norm(self, left, right):
         pass
+
+    @property
+    def nnodes(self):
+        return len(self._x)
+
+    @nnodes.setter
+    def nnodes(self, val):
+        raise ValueError("nnodes is a read-only property")
 
     @property
     def x(self):
@@ -166,10 +174,9 @@ class PiecewiseFunction(ABC):
         existing_idx = {}
         for i, x in enumerate(newx):
             idx = np.where(self._x == x)[0]
-            print(self._x, x, idx)
             if len(idx) > 0:
                 # the node is already present
-                existing_idx[i]=idx[0]
+                existing_idx[i] = idx[0]
                 self._y[idx] = newy[i]
 
         # Now insert all new nodes
@@ -266,6 +273,75 @@ class PLF(PiecewiseFunction):
         """
         return PLF(self._x, self._y, normalize=True, normvalue=self.norm())
 
+    def partial_integrals(self, pcf):
+        """
+        Return the partial integrals of the PLF between the nodes of the PCF
+
+        Args:
+            pcf: (:obj: `PCF`): the piecewise constant function
+
+        Returns:
+            (:obj: nd.array(float)): numpy array containing the partial integrals
+        """
+
+        if not isinstance(pcf, PCF):
+            raise ValueError("I can only convolute a PLF with a PCF")
+
+        # Insert PCF nodes into a local copy of plf
+        lplf = self.copy()
+        lplf.insert_nodes(pcf.x)
+
+        # Insert left and right end-point of plf in local copy of PCF
+        lpcf = pcf.copy()
+        lpcf.insert_nodes([self._x[0], self._x[-1]])
+        # Set lpcf nodes left and right to zero
+        lpcf.y = np.where(
+            np.logical_or(lpcf.x < self._x[0], lpcf.x >= self._x[-1]), 0.0, lpcf.y
+        )
+
+        result = np.zeros(len(pcf.x) - 1)
+
+        for i in range(len(lpcf.x) - 1):
+            k = np.where(lplf.x == lpcf.x[i])[0][0]
+            l = np.where(lplf.x == lpcf.x[i + 1])[0][0]
+            result[i] = np.trapz(lplf.y[k : l + 1], lplf.x[k : l + 1])
+
+        return result
+
+    def convolute(self, pcf):
+        """
+        Return the convolution (integral) of the PLF with a PCF
+
+        Args:
+            pcf: (:obj: `PCF`): the piecewise constant function
+
+        Returns:
+            float: the convolution integral
+        """
+
+        if not isinstance(pcf, PCF):
+            raise ValueError("I can only convolute a PLF with a PCF")
+
+        # Insert PCF nodes into a local copy of plf
+        lplf = self.copy()
+        lplf.insert_nodes(pcf.x)
+
+        # Insert left and right end-point of plf in local copy of PCF
+        lpcf = pcf.copy()
+        lpcf.insert_nodes([self._x[0], self._x[-1]])
+        # Set lpcf nodes left and right to zero
+        lpcf.y = np.where(
+            np.logical_or(lpcf.x < self._x[0], lpcf.x >= self._x[-1]), 0.0, lpcf.y
+        )
+
+        result = 0.0
+        for i in range(len(lpcf.x) - 1):
+            k = np.where(lplf.x == lpcf.x[i])[0][0]
+            l = np.where(lplf.x == lpcf.x[i + 1])[0][0]
+            result += lpcf.y[i] * np.trapz(lplf.y[k : l + 1], lplf.x[k : l + 1])
+
+        return result
+
 
 class PCF(PiecewiseFunction):
     """Class that implements Piecewise Constant Functions. Derived from
@@ -309,59 +385,3 @@ class PCF(PiecewiseFunction):
             (:obj: `PCF`): a deep copy of itself
         """
         return PCF(self._x, self._y, normalize=True, normvalue=self.norm())
-
-
-def convolute(pcf, plf):
-    """
-    Return the convolution (integral) of a PLF with a PCF
-
-    Args:
-        plf: (:obj: `PLF`): the piecewise constant function
-        pcf: (:obj: `PCF`): the piecewise constant function
-
-    Returns:
-        float: the convolution integral
-    """
-
-    if not isinstance(plf, PLF):
-        raise ValueError("I can only convolute a PLF with a PCF")
-
-    if not isinstance(pcf, PCF):
-        raise ValueError("I can only convolute a PLF with a PCF")
-
-    # Find left and right boundaries. Beyond those either PLF or PCF is
-    # zero and doesn't contribute to the integral
-    # left_boundary = np.max([plf.x[0], pcf.x[0]])
-    # right_boundary = np.min([plf.x[-1], pcf.x[-1]])
-
-    print("here")
-    print("plf\n",plf)
-
-    # Insert PCF nodes into a local copy of plf
-    lplf = plf.copy()
-    lplf.insert_nodes(pcf.x)
-
-    # Insert left and right end-point of plf in local copy of PCF
-    lpcf = pcf.copy()
-    print("lpcf before inserting nodes\n",lpcf)
-    lpcf.insert_nodes([plf.x[0], plf.x[-1]])
-    print("lpcf after inserting nodes\n", lpcf)
-    # Set lpcf nodes left and right to zero
-    lpcf.y = np.where(
-        np.logical_or(lpcf.x < plf.x[0], lpcf.x >= plf.x[-1]), 0.0, lpcf.y
-    )
-
-    print("lpcf after clipping", lpcf)
-
-    result = 0.0
-    for i in range(len(lpcf.x) - 1):
-        k = np.where(lplf.x == lpcf.x[i])[0][0]
-        l = np.where(lplf.x == lpcf.x[i + 1])[0][0]
-        print(i, lpcf.x[i])
-        print(k, l, lplf.x[k : l + 1])
-        print(lpcf.y[i] * np.trapz(lplf.y[k : l + 1], lplf.x[k : l + 1]))
-        result += lpcf.y[i] * np.trapz(lplf.y[k : l + 1], lplf.x[k : l + 1])
-        print("-")
-
-    print(result)
-    return result
