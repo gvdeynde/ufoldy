@@ -4,7 +4,7 @@ This module provides a class to work with piecewiselinear cross sections.
 """
 import numpy as np
 from dataclasses import dataclass, field, InitVar
-from ufoldy.llplf import LLPLF
+from ufoldy.piecewisefunction import PLF
 
 
 @dataclass
@@ -16,9 +16,9 @@ class ReactionRate:
     x: InitVar[np.ndarray] = field(default=np.array([]))
     y: InitVar[np.ndarray] = field(default=np.array([]))
 
-    cross_section: LLPLF = field(init=False)
+    cross_section: PLF = field(init=False)
     reaction_rate: float = 0.0
     reaction_rate_error: float = 1.0
 
     def __post_init__(self, x, y):
-        self.cross_section = LLPLF(x, y)
+        self.cross_section = PLF(x, y)

@@ -288,23 +288,44 @@ class PLF(PiecewiseFunction):
             raise ValueError("I can only convolute a PLF with a PCF")
 
         # Insert PCF nodes into a local copy of plf
-        lplf = self.copy()
-        lplf.insert_nodes(pcf.x)
+        # lplf = self.copy()
+        # lplf.insert_nodes(pcf.x)
 
         # Insert left and right end-point of plf in local copy of PCF
-        lpcf = pcf.copy()
-        lpcf.insert_nodes([self._x[0], self._x[-1]])
-        # Set lpcf nodes left and right to zero
-        lpcf.y = np.where(
-            np.logical_or(lpcf.x < self._x[0], lpcf.x >= self._x[-1]), 0.0, lpcf.y
+        # lpcf = pcf.copy()
+        # lpcf.insert_nodes([self._x[0], self._x[-1]])
+
+        # result = np.zeros(len(pcf.x) - 1)
+
+        # for i in range(len(lpcf.x) - 1):
+        # if (
+        # lpcf.x[i] >= self._x[0]
+        # and lpcf.x[i] >= pcf.x[0]
+        # and lpcf.x[i+1] <= self._x[-1]
+        # and lpcf.x[i+1] <= pcf.x[-1]
+        # ):
+        # k = np.where(lplf.x == lpcf.x[i])[0][0]
+        # l = np.where(lplf.x == lpcf.x[i + 1])[0][0]
+        # result[j] = np.trapz(lplf.y[k : l + 1], lplf.x[k : l + 1])
+        # j += 1
+
+        nbins = len(pcf.x)-1
+        result = np.zeros(nbins)
+
+        # Insert PCF nodes into a local copy of plf
+        lplf = self.copy()
+
+        # find pcf nodes that are internal to self
+        # and add them to the local copy plf
+        lplf.insert_nodes(
+            pcf.x[np.where(np.logical_and(pcf.x >= self._x[0], pcf.x <= self._x[-1]))]
         )
 
-        result = np.zeros(len(pcf.x) - 1)
+        for b in range(nbins):
+            lidx = np.searchsorted(lplf.x, pcf.x[b])
+            ridx = np.searchsorted(lplf.x, pcf.x[b+1])
 
-        for i in range(len(lpcf.x) - 1):
-            k = np.where(lplf.x == lpcf.x[i])[0][0]
-            l = np.where(lplf.x == lpcf.x[i + 1])[0][0]
-            result[i] = np.trapz(lplf.y[k : l + 1], lplf.x[k : l + 1])
+            result[b] = np.trapz(lplf.y[lidx:ridx+1], lplf.x[lidx:ridx+1])
 
         return result
 
@@ -319,28 +340,30 @@ class PLF(PiecewiseFunction):
             float: the convolution integral
         """
 
-        if not isinstance(pcf, PCF):
-            raise ValueError("I can only convolute a PLF with a PCF")
+        # if not isinstance(pcf, PCF):
+            # raise ValueError("I can only convolute a PLF with a PCF")
 
-        # Insert PCF nodes into a local copy of plf
-        lplf = self.copy()
-        lplf.insert_nodes(pcf.x)
+        # # Insert PCF nodes into a local copy of plf
+        # lplf = self.copy()
+        # lplf.insert_nodes(pcf.x)
 
-        # Insert left and right end-point of plf in local copy of PCF
-        lpcf = pcf.copy()
-        lpcf.insert_nodes([self._x[0], self._x[-1]])
-        # Set lpcf nodes left and right to zero
-        lpcf.y = np.where(
-            np.logical_or(lpcf.x < self._x[0], lpcf.x >= self._x[-1]), 0.0, lpcf.y
-        )
+        # # Insert left and right end-point of plf in local copy of PCF
+        # lpcf = pcf.copy()
+        # lpcf.insert_nodes([self._x[0], self._x[-1]])
+        # # Set lpcf nodes left and right to zero
+        # lpcf.y = np.where(
+            # np.logical_or(lpcf.x < self._x[0], lpcf.x >= self._x[-1]), 0.0, lpcf.y
+        # )
 
-        result = 0.0
-        for i in range(len(lpcf.x) - 1):
-            k = np.where(lplf.x == lpcf.x[i])[0][0]
-            l = np.where(lplf.x == lpcf.x[i + 1])[0][0]
-            result += lpcf.y[i] * np.trapz(lplf.y[k : l + 1], lplf.x[k : l + 1])
+        # result = 0.0
+        # for i in range(len(lpcf.x) - 1):
+            # k = np.where(lplf.x == lpcf.x[i])[0][0]
+            # l = np.where(lplf.x == lpcf.x[i + 1])[0][0]
+            # result += lpcf.y[i] * np.trapz(lplf.y[k : l + 1], lplf.x[k : l + 1])
 
-        return result
+        # return result
+
+        return np.dot(self.partial_integrals(pcf), pcf.y[:-1])
 
 
 class PCF(PiecewiseFunction):
@@ -351,7 +374,7 @@ class PCF(PiecewiseFunction):
     def __init__(self, x, y, normalize=False, normvalue=1.0):
         super().__init__(x, y, normalize, normvalue)
 
-        # make sure the last y value is zero
+        # make sure the last y value is 0.0
         self._y[-1] = 0.0
 
     def __call__(self, x):

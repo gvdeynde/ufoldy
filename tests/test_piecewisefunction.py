@@ -469,11 +469,20 @@ def test_plf_partial_integrals(small):
 
     b = PCF([0, 1, 3], [1, 1, 1])
 
-    pi = a.partial_integrals(b)
+    cnodes = np.array(
+        [[0, 1, 3], [-1, 1, 3], [0.5, 1, 3], [-1, 1, 4], [-1, 1, 2], [0.5, 1, 2]]
+    )
 
-    assert len(pi) == 2
-    assert pi[0] == approx(1.5)
-    assert pi[1] == approx(1.0)
+    cvals = np.array([0.5, 1, np.nan])
+
+    convs = np.array(
+        [[1.5, 1.0], [1.5, 1.0], [0.875, 1.0], [1.5, 1.0], [1.5, 1.25], [0.875, 1.25]]
+    )
+
+    for c, cint in zip(cnodes, convs):
+        b = PCF(c, cvals)
+        res = a.partial_integrals(b)
+        assert res == approx(cint)
 
 
 def test_convolute(small):
