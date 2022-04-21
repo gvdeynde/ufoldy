@@ -4,7 +4,9 @@ This module provides a class for unfolding neutron spectra
 """
 
 import numpy as np
+from scipy.sparse import csr_matrix
 from scipy.optimize import lsq_linear
+from tqdm.auto import trange
 from ufoldy.piecewisefunction import PLF, PCF
 from ufoldy.reactionrate import ReactionRate
 
@@ -15,24 +17,38 @@ def ufoldy(
     max_prior_factor=10.0,
     gradient_weight=0.1,
     refinements=5,
-    iters=5,
+    max_iter=5,
+    tol_iter=1e-2,
     lbound=1e-10,
     ubound=1.0,
+    verbose=False,
 ):
 
+    # Check verbosity level for progress bar
+    if verbose:
+        ranger = trange
+    else:
+        ranger = range
+
     # Create list for flux estimates
-    fluxes = [initial_guess]
+    fluxes = []
     mu = np.sqrt(gradient_weight)
     NRR = len(reactionrates)
 
+    flux_estimate = initial_guess.copy()
+    indices = []
+
     # Start iterative procedure
-    for i_refine in range(refinements):
-        print(f'Refinement {i_refine:2d}')
+    for i_refine in ranger(refinements, leave=False):
+        # print(f"Refinement {i_refine:2d}")
         # Refine previous estimate
-        flux_estimate = fluxes[-1].copy()
         flux_estimate.refine_log()
 
-        for i_iter in range(iters):
+        i_iter = 0
+        converged = False
+
+        while i_iter < max_iter and not converged:
+            i_iter += 1
             # Create matrix A
             A = np.zeros((NRR + flux_estimate.nnodes - 2, flux_estimate.nnodes - 1))
 
@@ -55,11 +71,30 @@ def ufoldy(
                 b[i] = rr.reaction_rate
 
             solution = lsq_linear(
-                A, b, bounds=(lbounds, ubounds), method="bvls", tol=1e-20
+                A,
+                b,
+                bounds=(lbounds, ubounds),
+                max_iter=200,
+                method="bvls",
+                # lsq_solver="lsmr",
+                verbose=0,
             )
+
             nfluxy = np.zeros_like(flux_estimate.x)
             nfluxy[:-1] = solution.x
 
             fluxes.append(PCF(flux_estimate.x, nfluxy))
+            flux_estimate = fluxes[-1].copy()
 
-    return fluxes
+            if i_iter > 1:
+                converged = (
+                    np.linalg.norm(
+                        np.abs(fluxes[-2].y[:-1] - fluxes[-1].y[:-1])
+                        / fluxes[-1].y[:-1]
+                    )
+                    < tol_iter
+                )
+
+        indices.append(i_iter)
+
+    return fluxes, indices
